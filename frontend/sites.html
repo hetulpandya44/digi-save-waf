@@ -1,0 +1,201 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protected Sites - Digi Save WAF</title>
+    <meta name="description" content="Manage protected websites in Digi Save WAF">
+    <link rel="stylesheet" href="/css/style.css?v=5.0.0">
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-mount"></div>
+        <main class="main-content">
+<div class="page-wrapper">
+                <div class="page-header">
+                    <div>
+                        <span class="subtitle">Manage websites protected by Digi Save WAF</span>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="openModal('addSiteModal')">+ Add Website</button>
+                    </div>
+                </div>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead><tr>
+                            <th>ID</th><th>Website</th><th>Server Names</th><th>Protection</th><th>Mode</th><th>Status</th><th>Actions</th>
+                        </tr></thead>
+                        <tbody id="sites-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="sites-empty" style="display:none">
+                    <div class="empty-icon">&#127760;</div>
+                    <h3>No websites configured</h3>
+                    <p>Add a website to start protecting it with Digi Save WAF</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="addSiteModal">
+        <div class="modal">
+            <div class="modal-header"><h3 id="siteModalTitle">Add Website</h3><button class="modal-close" onclick="closeModal('addSiteModal')">✕</button></div>
+            <form id="siteForm">
+                <div class="modal-body">
+                    <input type="hidden" id="site-id">
+                    <div class="form-group"><label>Comment / Name</label><input type="text" class="form-control" id="site-comment" placeholder="e.g. Main Website" required></div>
+                    <div class="form-group"><label>Server Names (comma-separated)</label><input type="text" class="form-control" id="site-server-names" placeholder="e.g. www.example.com, example.com" required></div>
+                    <div class="form-group"><label>Ports (comma-separated)</label><input type="text" class="form-control" id="site-ports" placeholder="e.g. 80, 443" value="80, 443" required></div>
+                    <div class="form-group"><label>Upstreams (comma-separated)</label><input type="text" class="form-control" id="site-upstreams" placeholder="e.g. 192.168.1.10:8080" required></div>
+                    
+                    <h4 style="margin-top:20px;margin-bottom:10px;font-size:14px;color:var(--text-primary)">Advanced Protection</h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                        <div class="form-group" style="display:flex;align-items:center;gap:12px">
+                            <label class="toggle"><input type="checkbox" id="site-captcha"><span class="slider"></span></label>
+                            <span style="font-size:13px">Anti-Bot (CAPTCHA)</span>
+                        </div>
+                        <div class="form-group" style="display:flex;align-items:center;gap:12px">
+                            <label class="toggle"><input type="checkbox" id="site-auth"><span class="slider"></span></label>
+                            <span style="font-size:13px">Auth Gate (Password)</span>
+                        </div>
+                        <div class="form-group" style="display:flex;align-items:center;gap:12px">
+                            <label class="toggle"><input type="checkbox" id="site-dynamic"><span class="slider"></span></label>
+                            <span style="font-size:13px">Dynamic HTML/JS</span>
+                        </div>
+                        <div class="form-group" style="display:flex;align-items:center;gap:12px">
+                            <label class="toggle"><input type="checkbox" id="site-enabled" checked><span class="slider"></span></label>
+                            <span style="font-size:13px">Site Enabled</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top:12px">
+                        <label>Detection Mode</label>
+                        <select class="form-control" id="site-mode" style="width:100%">
+                            <option value="balance">Balance (Default)</option>
+                            <option value="strict">Strict (High Risk)</option>
+                            <option value="disabled">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addSiteModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/app.js?v=5.0.0"></script>
+    <script>
+        if (!requireAuth()) window.location.href = '/login';
+        document.getElementById('sidebar-mount').innerHTML = getSidebarHTML('sites');
+        initSidebar('sites');
+
+        async function loadSites() {
+            const resp = await apiGet('/websites');
+            const tbody = document.getElementById('sites-tbody');
+            const empty = document.getElementById('sites-empty');
+
+            if (!resp.data.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+            empty.style.display = 'none';
+
+            tbody.innerHTML = resp.data.map(s => `<tr>
+                <td style="color:var(--text-muted)">#${s.id}</td>
+                <td style="color:var(--text-primary);font-weight:500">${s.comment || '-'}</td>
+                <td><code style="font-size:12px;color:var(--accent)">${(s.server_names||[]).join(', ')}</code></td>
+                <td>
+                    <div style="display:flex;gap:4px">
+                        ${s.captcha_enabled ? '<span class="badge" style="background:#4299e120;color:#4299e1">Bot</span>' : ''}
+                        ${s.auth_enabled ? '<span class="badge" style="background:#48bb7820;color:#48bb78">Auth</span>' : ''}
+                        ${s.dynamic_enabled ? '<span class="badge" style="background:#ed893620;color:#ed8936">Dyn</span>' : ''}
+                    </div>
+                </td>
+                <td><span class="badge" style="background:var(--surface-light)">${s.detection_mode || 'balance'}</span></td>
+                <td>${getEnabledBadge(s.is_enabled)}</td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="editSite(${s.id})">Edit</button>
+                    <button class="btn btn-secondary btn-sm" onclick="testUpstream(${s.id})" style="border-color:var(--accent);color:var(--accent)">Test Upstream</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSite(${s.id})">Delete</button>
+                </td>
+            </tr>`).join('');
+        }
+
+        document.getElementById('siteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('site-id').value;
+            const body = {
+                comment: document.getElementById('site-comment').value,
+                server_names: document.getElementById('site-server-names').value.split(',').map(s => s.trim()).filter(Boolean),
+                ports: document.getElementById('site-ports').value.split(',').map(s => parseInt(s.trim())).filter(Boolean),
+                upstreams: document.getElementById('site-upstreams').value.split(',').map(s => s.trim()).filter(Boolean),
+                is_enabled: document.getElementById('site-enabled').checked,
+                captcha_enabled: document.getElementById('site-captcha').checked,
+                auth_enabled: document.getElementById('site-auth').checked,
+                dynamic_enabled: document.getElementById('site-dynamic').checked,
+                detection_mode: document.getElementById('site-mode').value
+            };
+            try {
+                if (id) { await apiPut(`/websites/${id}`, body); showToast('Website updated', 'success'); }
+                else { await apiPost('/websites', body); showToast('Website added', 'success'); }
+                closeModal('addSiteModal');
+                loadSites();
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+
+        async function editSite(id) {
+            const resp = await apiGet(`/websites/${id}`);
+            const s = resp.data;
+            document.getElementById('siteModalTitle').textContent = 'Edit Website';
+            document.getElementById('site-id').value = s.id;
+            document.getElementById('site-comment').value = s.comment;
+            document.getElementById('site-server-names').value = (s.server_names||[]).join(', ');
+            document.getElementById('site-ports').value = (s.ports||[]).join(', ');
+            document.getElementById('site-upstreams').value = (s.upstreams||[]).join(', ');
+            document.getElementById('site-enabled').checked = s.is_enabled;
+            document.getElementById('site-captcha').checked = s.captcha_enabled || false;
+            document.getElementById('site-auth').checked = s.auth_enabled || false;
+            document.getElementById('site-dynamic').checked = s.dynamic_enabled || false;
+            document.getElementById('site-mode').value = s.detection_mode || 'balance';
+            openModal('addSiteModal');
+        }
+
+        async function deleteSite(id) {
+            if (!confirm('Delete this website?')) return;
+            try { await apiDelete(`/websites/${id}`); showToast('Website deleted', 'success'); loadSites(); }
+            catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function testUpstream(id) {
+            try {
+                showToast('Testing upstreams...', 'info');
+                const resp = await apiPost(`/websites/${id}/test`, {});
+                let msg = '';
+                resp.data.forEach(r => {
+                    const statusIcon = r.status === 'online' ? 'OK' : 'FAIL';
+                    msg += `${statusIcon} ${r.upstream}: ${r.http_code} (${r.latency_ms}ms)\n`;
+                });
+                alert(msg || 'No upstreams configured.');
+            } catch (err) {
+                showToast('Upstream test failed: ' + err.message, 'error');
+            }
+        }
+
+        // Reset modal on open
+        document.querySelector('[onclick="openModal(\'addSiteModal\')"]').addEventListener('click', () => {
+            document.getElementById('siteModalTitle').textContent = 'Add Website';
+            document.getElementById('site-id').value = '';
+            document.getElementById('siteForm').reset();
+            document.getElementById('site-enabled').checked = true;
+            document.getElementById('site-captcha').checked = false;
+            document.getElementById('site-auth').checked = false;
+            document.getElementById('site-dynamic').checked = false;
+            document.getElementById('site-mode').value = 'balance';
+        });
+
+        loadSites();
+    </script>
+</body>
+</html>

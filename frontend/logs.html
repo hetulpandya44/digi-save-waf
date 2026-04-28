@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Logs - Digi Save WAF</title>
+    <meta name="description" content="View attack detection logs in Digi Save WAF">
+    <link rel="stylesheet" href="/css/style.css?v=5.0.0">
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-mount"></div>
+        <main class="main-content">
+            <div class="page-wrapper">
+                <div class="page-header">
+                    <div>
+                        <span class="subtitle">View and analyze detected attacks</span>
+                    </div>
+                    <div class="page-actions">
+                        <span style="color:var(--text-muted);font-size:13px;margin-right:8px" id="log-total"></span>
+                        <button class="btn btn-secondary btn-sm" onclick="loadLogs()">Refresh</button>
+                        <button class="btn btn-primary btn-sm" onclick="exportLogsCSV()">Export CSV</button>
+                    </div>
+                </div>
+
+            <!-- Filters -->
+            <div class="filter-bar">
+                <div class="search-box">
+                    <input type="text" class="form-control" id="filter-keyword" placeholder="Search IP, host, path, payload...">
+                </div>
+                <select class="form-control" id="filter-risk">
+                    <option value="">All Risk Levels</option>
+                    <option value="0">Low</option>
+                    <option value="1">Medium</option>
+                    <option value="2">High</option>
+                    <option value="3">Critical</option>
+                </select>
+                <select class="form-control" id="filter-action">
+                    <option value="">All Actions</option>
+                    <option value="1">Blocked</option>
+                    <option value="0">Passed</option>
+                </select>
+                <select class="form-control" id="filter-attack">
+                    <option value="">All Attack Types</option>
+                    <option value="0">SQL Injection</option>
+                    <option value="1">XSS</option>
+                    <option value="2">Command Injection</option>
+                    <option value="3">CRLF Injection</option>
+                    <option value="4">LDAP Injection</option>
+                    <option value="5">XPath Injection</option>
+                    <option value="9">SSRF</option>
+                    <option value="11">SSTI</option>
+                    <option value="13">Path Traversal</option>
+                    <option value="18">Scanner / Bot Detection</option>
+                    <option value="23">XXE</option>
+                    <option value="31">Sensitive File Access</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="currentPage=1;loadLogs()">Apply Filters</button>
+            </div>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead><tr>
+                            <th>Time</th><th>Source IP</th><th>Method</th><th>Target</th><th>Attack Type</th><th>Risk</th><th>Action</th><th>Module</th><th></th>
+                        </tr></thead>
+                        <tbody id="logs-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="logs-empty" style="display:none">
+                    <div class="empty-icon">🛡️</div>
+                    <h3>No detection logs</h3>
+                    <p>No attacks detected matching your filters</p>
+                </div>
+                <div class="pagination" id="logs-pagination"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Side Panel -->
+    <div class="detail-panel" id="detailPanel">
+        <div class="detail-panel-header">
+            <h3>Attack Detail</h3>
+            <button class="modal-close" onclick="document.getElementById('detailPanel').classList.remove('active')">✕</button>
+        </div>
+        <div class="detail-panel-body" id="detailBody"></div>
+    </div>
+
+    <script src="/js/app.js?v=5.0.0"></script>
+    <script>
+        if (!requireAuth()) window.location.href = '/login';
+        document.getElementById('sidebar-mount').innerHTML = getSidebarHTML('logs');
+        initSidebar('logs');
+
+        let currentPage = 1;
+        const pageSize = 20;
+
+        async function loadLogs() {
+            const params = new URLSearchParams({ page: currentPage, page_size: pageSize });
+            const keyword = document.getElementById('filter-keyword').value;
+            const risk = document.getElementById('filter-risk').value;
+            const action = document.getElementById('filter-action').value;
+            const attack = document.getElementById('filter-attack').value;
+            if (keyword) params.set('keyword', keyword);
+            if (risk) params.set('risk_level', risk);
+            if (action) params.set('action', action);
+            if (attack) params.set('attack_type', attack);
+
+            const resp = await apiGet(`/detect-logs?${params}`);
+            const tbody = document.getElementById('logs-tbody');
+            const empty = document.getElementById('logs-empty');
+            const pag = document.getElementById('logs-pagination');
+            document.getElementById('log-total').textContent = `${resp.total} events`;
+
+            if (!resp.data.length) { tbody.innerHTML = ''; empty.style.display = 'block'; pag.innerHTML = ''; return; }
+            empty.style.display = 'none';
+
+            tbody.innerHTML = resp.data.map(l => `<tr style="cursor:pointer" onclick="showDetail('${l.event_id}')">
+                <td style="white-space:nowrap;font-size:12px">${formatTimestamp(l.timestamp)}</td>
+                <td style="font-family:monospace;color:var(--text-primary)">${l.src_ip}</td>
+                <td><span class="badge-status ${l.method==='GET'?'badge-info':l.method==='POST'?'badge-warning':'badge-muted'}">${l.method}</span></td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${l.host}${l.url_path}">${l.host}${l.url_path}</td>
+                <td><span class="badge-status badge-warning" style="font-size:10px">${l.attack_type_str}</span></td>
+                <td>${getRiskBadge(l.risk_level)}</td>
+                <td>${getActionBadge(l.action)}</td>
+                <td style="font-size:11px;color:var(--text-muted)">${l.module}</td>
+                <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();showDetail('${l.event_id}')">View</button></td>
+            </tr>`).join('');
+
+            // Pagination
+            const totalPages = Math.ceil(resp.total / pageSize);
+            let pagHTML = `<div class="pagination-info">Page ${currentPage} of ${totalPages} (${resp.total} total)</div><div class="pagination-btns">`;
+            pagHTML += `<button ${currentPage===1?'disabled':''} onclick="currentPage=1;loadLogs()">&laquo;</button>`;
+            pagHTML += `<button ${currentPage===1?'disabled':''} onclick="currentPage--;loadLogs()">&lsaquo;</button>`;
+            for (let p = Math.max(1,currentPage-2); p <= Math.min(totalPages,currentPage+2); p++) {
+                pagHTML += `<button class="${p===currentPage?'active':''}" onclick="currentPage=${p};loadLogs()">${p}</button>`;
+            }
+            pagHTML += `<button ${currentPage===totalPages?'disabled':''} onclick="currentPage++;loadLogs()">&rsaquo;</button>`;
+            pagHTML += `<button ${currentPage===totalPages?'disabled':''} onclick="currentPage=${totalPages};loadLogs()">&raquo;</button></div>`;
+            pag.innerHTML = pagHTML;
+        }
+
+        async function showDetail(eventId) {
+            const resp = await apiGet(`/detect-logs/${eventId}`);
+            const d = resp.data;
+            const panel = document.getElementById('detailPanel');
+            document.getElementById('detailBody').innerHTML = `
+                <div class="detail-section">
+                    <h4>Overview</h4>
+                    <div class="detail-row"><span class="label">Event ID</span><span class="value" style="font-family:monospace;font-size:11px">${d.event_id}</span></div>
+                    <div class="detail-row"><span class="label">Timestamp</span><span class="value">${formatTimestamp(d.timestamp)}</span></div>
+                    <div class="detail-row"><span class="label">Attack Type</span><span class="value">${d.attack_type_str}</span></div>
+                    <div class="detail-row"><span class="label">Risk Level</span><span class="value">${getRiskBadge(d.risk_level)}</span></div>
+                    <div class="detail-row"><span class="label">Action</span><span class="value">${getActionBadge(d.action)}</span></div>
+                    <div class="detail-row"><span class="label">Module</span><span class="value">${d.module}</span></div>
+                </div>
+                <div class="detail-section">
+                    <h4>Connection</h4>
+                    <div class="detail-row"><span class="label">Source IP</span><span class="value" style="font-family:monospace">${d.src_ip}:${d.src_port}</span></div>
+                    <div class="detail-row"><span class="label">Destination</span><span class="value" style="font-family:monospace">${d.dst_ip}:${d.dst_port}</span></div>
+                    <div class="detail-row"><span class="label">Country</span><span class="value">${d.country}</span></div>
+                    <div class="detail-row"><span class="label">Protocol</span><span class="value">${d.protocol===2?'HTTPS':'HTTP'}</span></div>
+                    <div class="detail-row"><span class="label">Method</span><span class="value">${d.method}</span></div>
+                    <div class="detail-row"><span class="label">Host</span><span class="value">${d.host}</span></div>
+                    <div class="detail-row"><span class="label">URL Path</span><span class="value">${d.url_path}</span></div>
+                    <div class="detail-row"><span class="label">Status Code</span><span class="value">${d.status_code}</span></div>
+                </div>
+                <div class="detail-section">
+                    <h4>Attack Info</h4>
+                    <div class="detail-row"><span class="label">Payload</span></div>
+                    <div class="code-block">${escapeHtml(d.payload || 'N/A')}</div>
+                    <div class="detail-row" style="margin-top:12px"><span class="label">Location</span><span class="value">${d.location}</span></div>
+                    <div class="detail-row"><span class="label">Rule ID</span><span class="value">${d.rule_id}</span></div>
+                </div>
+                <div class="detail-section">
+                    <h4>Request Headers</h4>
+                    <div class="code-block">${escapeHtml(d.req_header || 'N/A')}</div>
+                </div>
+                ${d.req_body ? `<div class="detail-section"><h4>Request Body</h4><div class="code-block">${escapeHtml(d.req_body)}</div></div>` : ''}
+            `;
+            panel.classList.add('active');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Enter to search
+        document.getElementById('filter-keyword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') { currentPage = 1; loadLogs(); }
+        });
+
+        function exportLogsCSV() {
+            try {
+                showToast("Generating CSV export...", "info");
+                const token = getToken();
+                // We use fetch to pass the Auth header and then blob download
+                fetch('/api/detect-logs/export/csv?days=7', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                .then(res => res.blob())
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `digisave_waf_logs.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    showToast("Export complete.", "success");
+                })
+                .catch(err => showToast("Export failed: " + err.message, "error"));
+            } catch(e) {
+                showToast("Failed to export logs", "error");
+            }
+        }
+
+        loadLogs();
+    </script>
+</body>
+</html>

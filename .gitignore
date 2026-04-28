@@ -1,0 +1,40 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Runtime data
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.sqlite3
+*.db
+
+# SSL keys and generated certs
+backend/certs/*
+!backend/certs/.gitkeep
+
+# Local test caches
+.pytest_cache/
+backend/.pytest_cache/
+backend/**/__pycache__/
+
+# OS / Windows metadata
+*.Zone.Identifier
+Desktop.ini
+
+# Node helpers if docs tooling is added later
+node_modules/

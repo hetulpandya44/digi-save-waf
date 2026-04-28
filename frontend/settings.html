@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Digi Save WAF</title>
+    <meta name="description" content="Digi Save WAF system settings">
+    <link rel="stylesheet" href="/css/style.css?v=5.0.3">
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-mount"></div>
+        <main class="main-content">
+<div class="page-wrapper">
+                <div class="page-header">
+                    <div>
+                        <span class="subtitle">System configuration and preferences</span>
+                    </div>
+                </div>
+
+            <div class="settings-grid">
+                <div class="card">
+                    <ul class="settings-nav">
+                        <li class="active" onclick="showSection('general', this)">General</li>
+                        <li onclick="showSection('security', this)">Security</li>
+                        <li onclick="showSection('detection', this)">Detection Engine</li>
+                        <li onclick="showSection('notifications', this)">Notifications</li>
+                        <li onclick="showSection('about', this)">About</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <!-- General Settings -->
+                    <div class="settings-section active" id="section-general">
+                        <h2 style="font-size:18px;margin-bottom:20px">General Settings</h2>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Application Name</div>
+                                <div class="setting-desc">Name displayed in the UI header</div>
+                            </div>
+                            <input type="text" class="form-control" style="max-width:200px" value="Digi Save WAF" readonly>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Management Port</div>
+                                <div class="setting-desc">Port for the management web console</div>
+                            </div>
+                            <input type="text" class="form-control" style="max-width:120px" value="8005" readonly>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Auto-refresh Dashboard</div>
+                                <div class="setting-desc">Automatically refresh dashboard data every minute</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Dark Mode</div>
+                                <div class="setting-desc">Use dark theme for the interface</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Log Retention</div>
+                                <div class="setting-desc">How long to keep detection logs</div>
+                            </div>
+                            <select class="form-control" style="max-width:160px" id="log-retention"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">365 days</option></select>
+                        </div>
+                        <div style="margin-top:16px">
+                            <button class="btn btn-primary" onclick="saveGeneralSettings()">Save General Settings</button>
+                        </div>
+                    </div>
+
+                    <!-- Security Settings -->
+                    <div class="settings-section" id="section-security">
+                        <h2 style="font-size:18px;margin-bottom:20px">Security Settings</h2>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Two-Factor Authentication</div>
+                                <div class="setting-desc">Require 2FA for admin login (TOTP)</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox" id="tfa-toggle" onchange="toggle2FA(this)"><span class="slider"></span></label>
+                        </div>
+                        <div id="tfa-setup-area" style="display:none;margin-bottom:20px;padding:16px;background:var(--bg-secondary);border-radius:8px">
+                            <p style="font-size:13px;margin-bottom:12px">Scan the QR code below with Google Authenticator or enter the secret manually:</p>
+                            <div style="text-align:center;margin-bottom:12px">
+                                <img id="tfa-qr" style="width:200px;height:200px;border-radius:4px" />
+                            </div>
+                            <p style="font-family:monospace;text-align:center;font-size:12px;word-break:break-all" id="tfa-secret"></p>
+                            <div class="form-group" style="margin-top:12px"><label>Enter code from app to confirm</label><input type="text" class="form-control" id="tfa-code" placeholder="6-digit code"></div>
+                            <button class="btn btn-primary" onclick="confirm2FA()">Enable 2FA</button>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Session Timeout</div>
+                                <div class="setting-desc">Auto-logout after inactivity</div>
+                            </div>
+                            <select class="form-control" style="max-width:160px"><option>15 minutes</option><option>30 minutes</option><option selected>1 hour</option><option>4 hours</option><option>24 hours</option></select>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">IP Whitelist</div>
+                                <div class="setting-desc">Only allow access from specific IPs</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox"><span class="slider"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">API Rate Limiting</div>
+                                <div class="setting-desc">Limit API requests per minute</div>
+                            </div>
+                            <input type="number" class="form-control" style="max-width:120px" value="1000">
+                        </div>
+                        <div style="margin-top:20px">
+                            <h3 style="font-size:15px;margin-bottom:12px">Change Admin Username</h3>
+                            <div class="form-group"><label>Current Username</label><input type="text" class="form-control" id="current-username-display" readonly></div>
+                            <div class="form-group"><label>Current Password</label><input type="password" class="form-control" id="username-current-password" placeholder="Enter current password"></div>
+                            <div class="form-group"><label>New Username</label><input type="text" class="form-control" id="username-new" placeholder="Enter new username"></div>
+                            <button class="btn btn-primary" onclick="changeUsername()">Update Username</button>
+                        </div>
+
+                        <div style="margin-top:30px; border-top:1px solid var(--border); padding-top:20px">
+                            <h3 style="font-size:15px;margin-bottom:12px">Change Admin Password</h3>
+                            <div class="form-group"><label>Current Password</label><input type="password" class="form-control" id="pw-old" placeholder="Enter current password"></div>
+                            <div class="form-group"><label>New Password</label><input type="password" class="form-control" id="pw-new" placeholder="Enter new password"></div>
+                            <div class="form-group"><label>Confirm Password</label><input type="password" class="form-control" id="pw-confirm" placeholder="Confirm new password"></div>
+                            <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+                        </div>
+
+                        <div style="margin-top:30px; border-top:1px solid var(--border); padding-top:20px">
+                            <h3 style="font-size:15px;margin-bottom:12px">Auth Gate Configuration</h3>
+                            <div class="setting-desc" style="margin-bottom: 16px">Set the global master password used for all websites enabled with Auth Gate Protection.</div>
+                            <div class="form-group"><label>Auth Gate Master Password</label><input type="password" id="auth_gate_password" class="form-control" placeholder="Leave blank to keep unchanged"></div>
+                            <button class="btn btn-primary" onclick="saveAuthPassword()">Save Auth Settings</button>
+                        </div>
+
+                        <div style="margin-top:30px; border-top:1px solid var(--border); padding-top:20px">
+                            <h3 style="font-size:15px;margin-bottom:12px">WAF Proxy HTTPS Configuration</h3>
+                            <div class="setting-desc" style="margin-bottom: 16px">Configure SSL certificates for the WAF proxy engine (Port 8085). Paths must be absolute, or relative to the backend directory. Proxy restart is required for changes to take effect.</div>
+                            <div class="form-group"><label>SSL Certificate Path (.pem/.crt)</label><input type="text" id="ssl_cert_path" class="form-control" placeholder="/path/to/cert.pem"></div>
+                            <div class="form-group"><label>SSL Key Path (.key)</label><input type="text" id="ssl_key_path" class="form-control" placeholder="/path/to/key.pem"></div>
+                            <button class="btn btn-primary" onclick="saveSSLSettings(this)">Save SSL Settings</button>
+                        </div>
+                        
+                        <div style="margin-top:30px; border-top:1px solid var(--border); padding-top:20px">
+                            <h3 style="font-size:15px;margin-bottom:12px">WAF Engine Status</h3>
+                            <div class="setting-item" style="border:1px solid var(--border); background:rgba(0,0,0,0.2); padding:16px; border-radius:8px">
+                                <div>
+                                    <div style="font-weight:600;margin-bottom:4px">WAF Proxy Engine (Port 8085)</div>
+                                    <div style="font-size:12px;color:var(--text-muted)" id="waf-sys-uptime">Uptime: Checking...</div>
+                                </div>
+                                <div><span class="badge-status badge-success" id="waf-sys-status">Checking...</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detection Engine Settings -->
+                    <div class="settings-section" id="section-detection">
+                        <h2 style="font-size:18px;margin-bottom:20px">Detection Engine</h2>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Global Detection Mode</div>
+                                <div class="setting-desc">Default protection level for all modules</div>
+                            </div>
+                            <select class="form-control" style="max-width:160px">
+                                <option value="strict">Strict</option>
+                                <option value="default" selected>Default (Balanced)</option>
+                                <option value="permissive">Permissive</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Deep Inspection</div>
+                                <div class="setting-desc">Enable deep packet inspection for encoded payloads</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox" checked><span class="slider"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Detection Timeout (ms)</div>
+                                <div class="setting-desc">Maximum time for detection analysis per request</div>
+                            </div>
+                            <input type="number" class="form-control" style="max-width:120px" value="1000">
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Decode Methods</div>
+                                <div class="setting-desc">Payload decode methods for analysis</div>
+                            </div>
+                            <div style="font-size:12px;color:var(--text-muted)">URL Decode, JSON, Base64, Hex, XML, PHP Deserialize, UTF-7</div>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Source IP Detection</div>
+                                <div class="setting-desc">How to determine the real client IP</div>
+                            </div>
+                            <select class="form-control" style="max-width:180px">
+                                <option value="socket_ip" selected>Socket IP</option>
+                                <option value="http_header">HTTP Header (X-Forwarded-For)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Notification Settings -->
+                    <div class="settings-section" id="section-notifications">
+                        <h2 style="font-size:18px;margin-bottom:20px">Notification Settings</h2>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Email Alerts</div>
+                                <div class="setting-desc">Send email alerts for high-risk attacks</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox"><span class="slider"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Webhook Notifications</div>
+                                <div class="setting-desc">Send notifications to a webhook URL</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox"><span class="slider"></span></label>
+                        </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">Alert Threshold</div>
+                                <div class="setting-desc">Minimum risk level to trigger alerts</div>
+                            </div>
+                            <select class="form-control" style="max-width:160px"><option>Low</option><option>Medium</option><option selected>High</option><option>Critical</option></select>
+                        </div>
+                    </div>
+
+                    <!-- About -->
+                    <div class="settings-section" id="section-about">
+                        <h2 style="font-size:18px;margin-bottom:20px">About Digi Save WAF</h2>
+                        <div style="text-align:center;padding:40px">
+                            <div style="width:80px;height:80px;background:var(--gradient-1);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:36px;box-shadow:0 4px 20px var(--accent-glow);margin-bottom:20px">&#128737;</div>
+                            <h2 style="font-size:24px;margin-bottom:4px;background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Digi Save WAF</h2>
+                            <p style="color:var(--text-muted);margin-bottom:24px">Web Application Firewall</p>
+                            <div style="display:inline-grid;grid-template-columns:auto auto;gap:8px 24px;text-align:left;font-size:13px">
+                                <span style="color:var(--text-muted)">Version</span><span>2.1.0</span>
+                                <span style="color:var(--text-muted)">Build</span><span>2026.04.20</span>
+                                <span style="color:var(--text-muted)">Runtime</span><span>Python 3.11 + FastAPI</span>
+                                <span style="color:var(--text-muted)">Database</span><span>SQLite</span>
+                                <span style="color:var(--text-muted)">License</span><span>GPL-3.0</span>
+                            </div>
+                            <div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border)">
+                                <p style="font-size:12px;color:var(--text-muted)">A self-hosted WAF protecting web apps from attacks and exploits.<br>Built with care using Python FastAPI</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/app.js?v=5.0.0"></script>
+    <script>
+        if (!requireAuth()) window.location.href = '/login';
+        document.getElementById('sidebar-mount').innerHTML = getSidebarHTML('settings');
+        initSidebar('settings');
+
+        function showSection(id, el) {
+            document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.settings-nav li').forEach(l => l.classList.remove('active'));
+            document.getElementById('section-' + id).classList.add('active');
+            el.classList.add('active');
+        }
+
+        async function loadSettings() {
+            try {
+                const data = await apiGet('/settings');
+                if(data.ssl_cert_path) document.getElementById('ssl_cert_path').value = data.ssl_cert_path;
+                if(data.ssl_key_path)  document.getElementById('ssl_key_path').value = data.ssl_key_path;
+                if(data.log_retention_days) document.getElementById('log-retention').value = data.log_retention_days;
+                if(data.auth_gate_password_configured) document.getElementById('auth_gate_password').placeholder = "********";
+            } catch(e) {
+                console.error("Failed to load settings", e);
+            }
+        }
+
+        async function saveSSLSettings(btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Saving...';
+            btn.disabled = true;
+
+            const payload = {
+                ssl_cert_path: document.getElementById('ssl_cert_path').value,
+                ssl_key_path: document.getElementById('ssl_key_path').value
+            };
+            try {
+                await apiPut('/settings', payload);
+                showToast("SSL Settings saved. Restart engine to apply.", "success");
+            } catch(e) {
+                showToast(e.message || "Failed to save settings.", "error");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function saveAuthPassword() {
+            const pwd = document.getElementById('auth_gate_password').value;
+            if(!pwd) return showToast("Enter a new password", "info");
+            try {
+                await apiPut('/settings', { auth_gate_password: pwd });
+                showToast('Auth Gate password updated', 'success');
+                document.getElementById('auth_gate_password').value = '';
+                document.getElementById('auth_gate_password').placeholder = "********";
+            } catch(e) {
+                showToast('Failed to save auth password', 'error');
+            }
+        }
+
+        async function changeUsername() {
+            const current_password = document.getElementById('username-current-password').value;
+            const new_username = document.getElementById('username-new').value.trim();
+            if (!current_password || !new_username) return showToast('Fill in all username fields', 'info');
+            try {
+                const resp = await apiPost('/change-username', { current_password, new_username });
+                if (resp.access_token) setToken(resp.access_token);
+                if (resp.username) setUsername(resp.username);
+                document.getElementById('current-username-display').value = resp.username || new_username;
+                document.getElementById('username-current-password').value = '';
+                document.getElementById('username-new').value = '';
+                initSidebar('settings');
+                showToast('Username changed successfully', 'success');
+            } catch(e) {
+                showToast(e.message || 'Failed to change username', 'error');
+            }
+        }
+
+        async function toggle2FA(cb) {
+            if (cb.checked) {
+                try {
+                    const resp = await apiGet('/mfa/setup');
+                    document.getElementById('tfa-secret').textContent = resp.secret;
+                    const qrEl = document.getElementById('tfa-qr');
+                    if (resp.qr_data_url) {
+                        qrEl.src = resp.qr_data_url;
+                        qrEl.style.display = 'inline-block';
+                    } else {
+                        qrEl.removeAttribute('src');
+                        qrEl.style.display = 'none';
+                    }
+                    document.getElementById('tfa-setup-area').style.display = 'block';
+                } catch(e) {
+                    showToast(e.message || 'Failed to setup 2FA', 'error');
+                    cb.checked = false;
+                }
+            } else {
+                const code = prompt('Enter your current TOTP code to disable 2FA:');
+                if (!code) { cb.checked = true; return; }
+                try {
+                    await apiPost('/mfa/disable', { code });
+                    showToast('2FA disabled', 'success');
+                    document.getElementById('tfa-setup-area').style.display = 'none';
+                } catch(e) {
+                    showToast(e.message || 'Failed to disable 2FA', 'error');
+                    cb.checked = true;
+                }
+            }
+        }
+
+        async function confirm2FA() {
+            const code = document.getElementById('tfa-code').value;
+            if (!code) return showToast('Enter the 6-digit code first', 'info');
+            try {
+                await apiPost('/mfa/enable', { code });
+                showToast('2FA enabled successfully!', 'success');
+                document.getElementById('tfa-setup-area').style.display = 'none';
+            } catch(e) {
+                showToast(e.message || 'Invalid code', 'error');
+            }
+        }
+
+        async function changePassword() {
+            const old_password = document.getElementById('pw-old').value;
+            const new_password = document.getElementById('pw-new').value;
+            const confirm = document.getElementById('pw-confirm').value;
+            if (!old_password || !new_password) return showToast('Fill in all fields', 'info');
+            if (new_password !== confirm) return showToast('Passwords do not match', 'error');
+            try {
+                await apiPost('/change-password', { old_password, new_password });
+                showToast('Password changed!', 'success');
+                document.getElementById('pw-old').value = '';
+                document.getElementById('pw-new').value = '';
+                document.getElementById('pw-confirm').value = '';
+            } catch(e) {
+                showToast(e.message || 'Failed to change password', 'error');
+            }
+        }
+
+        async function saveGeneralSettings() {
+            const days = document.getElementById('log-retention').value;
+            try {
+                await apiPut('/settings', { log_retention_days: days });
+                showToast('General settings saved', 'success');
+            } catch(e) {
+                showToast(e.message || 'Failed', 'error');
+            }
+        }
+
+        async function loadSysInfo() {
+            try {
+                const resp = await apiGet('/settings/sysinfo');
+                if (resp) {
+                    const statusEl = document.getElementById('waf-sys-status');
+                    document.getElementById('waf-sys-uptime').textContent = `Management Uptime: ${resp.uptime} | OS: ${resp.os}`;
+                    if(resp.waf_proxy === 'online') {
+                        statusEl.className = 'badge-status badge-success';
+                        statusEl.textContent = 'ONLINE & ROUTING TRAFFIC';
+                    } else {
+                        statusEl.className = 'badge-status badge-danger';
+                        statusEl.textContent = 'OFFLINE / UNREACHABLE';
+                    }
+                }
+            } catch(e) {}
+        }
+
+        async function loadUserInfo() {
+            try {
+                const resp = await apiGet('/user');
+                if (resp && resp.data) {
+                    document.getElementById('tfa-toggle').checked = resp.data.tfa_enabled;
+                    document.getElementById('current-username-display').value = resp.data.username || '';
+                    setUsername(resp.data.username || getUsername() || 'Admin');
+                }
+            } catch(e) {}
+        }
+
+        // Initialize
+        loadSettings();
+        loadUserInfo();
+        loadSysInfo();
+        setInterval(loadSysInfo, 15000);
+    </script>
+</body>
+</html>

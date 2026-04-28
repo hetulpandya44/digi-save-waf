@@ -1,0 +1,56 @@
+"""Bot & Scanner Detection Module — User-Agent and behavior fingerprinting"""
+
+PATTERNS = [
+    # Known attack tools
+    r"(sqlmap[/\s])",
+    r"(nikto)",
+    r"(nmap[\s/])",
+    r"(masscan[/\s])",
+    r"(dirbuster)",
+    r"(gobuster)",
+    r"(wfuzz)",
+    r"(ffuf[/\s])",
+    r"(burpsuite|burp\s*suite)",
+    r"(zaproxy|owasp\s*zap)",
+    r"(acunetix)",
+    r"(nessus)",
+    r"(openvas)",
+    r"(w3af)",
+    r"(arachni)",
+    r"(commix)",
+    r"(havij)",
+    r"(pangolin)",
+    # Scripting / automation
+    r"(python-requests[/\s])",
+    r"(python-urllib[/\s])",
+    r"(wget[/\s])",
+    r"(curl[/\s])",
+    r"(libwww-perl)",
+    r"(lwp-trivial)",
+    r"(httpclient)",
+    r"(java[/\s]\d)",
+    r"(go-http-client)",
+    r"(node-fetch)",
+    r"(axios[/\s])",
+    r"(scrapy)",
+    r"(phantomjs)",
+    r"(headlesschrome)",
+    r"(selenium)",
+    r"(puppeteer)",
+    r"(playwright)",
+    # Crawlers (non-search-engine)
+    r"(semrush)",
+    r"(ahrefsbot)",
+    r"(dotbot)",
+    r"(mj12bot)",
+    r"(rogerbot)",
+    r"(blexbot)",
+]
+
+MODULE_INFO = {
+    "name": "Bot / Scanner Detection",
+    "key": "scanner",
+    "attack_type": 18,
+    "description": "Detects automated scanning tools, attack frameworks, and malicious crawlers via User-Agent fingerprinting",
+    "pattern_count": len(PATTERNS),
+}

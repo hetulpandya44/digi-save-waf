@@ -1,0 +1,42 @@
+ATTACK_TYPES = {
+    -4: "Oversized Request",
+    -3: "Custom Rule Match",
+    0: "SQL Injection",
+    1: "XSS",
+    2: "Command Injection",
+    3: "CRLF Injection",
+    4: "LDAP Injection",
+    5: "XPath Injection",
+    6: "RCE",
+    7: "File Include",
+    8: "CSRF",
+    9: "SSRF",
+    10: "XML Injection",
+    11: "SSTI",
+    12: "File Upload",
+    13: "Path Traversal",
+    14: "Backdoor",
+    15: "Bruteforce",
+    16: "HTTP Flood",
+    17: "Bot Abuse",
+    18: "Scanner / Bot Detection",
+    19: "PHP Code Injection",
+    20: "ASP Code Injection",
+    21: "Java Deserialization",
+    22: "PHP Deserialization",
+    23: "XXE",
+    24: "Protocol Attack",
+    25: "Response Leak",
+    26: "Code Leak",
+    27: "Server Error Leak",
+    28: "Directory Indexing",
+    29: "Webshell",
+    30: "Unauthorized Access",
+    31: "Sensitive File Access",
+    62: "Unknown",
+}
+
+RISK_LEVELS = {0: "Low", 1: "Medium", 2: "High", 3: "Critical"}
+
+# Pydantic models are not strictly needed here since we'll just return standard dictionaries 
+# from our route handlers, but keeping constants here avoids breaking downstream imports.

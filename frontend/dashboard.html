@@ -1,0 +1,287 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Digi Save WAF</title>
+    <meta name="description" content="Digi Save WAF Dashboard - Real-time security monitoring">
+    <link rel="stylesheet" href="/css/style.css?v=5.0.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-mount"></div>
+        <main class="main-content">
+<div class="page-wrapper">
+                <div class="page-header">
+                    <div>
+                        <span class="subtitle">Overview of security posture and traffic analysis</span>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid" id="stats-grid">
+                    <div class="stat-card accent">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Protected Sites</span>
+                            <div class="stat-icon">&#127760;</div>
+                        </div>
+                        <div class="stat-value" id="stat-sites">-</div>
+                        <div class="stat-footer">Active configurations</div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Today's Requests</span>
+                            <div class="stat-icon">📊</div>
+                        </div>
+                        <div class="stat-value" id="stat-requests">-</div>
+                        <div class="stat-footer">Total proxied traffic</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Attacks Detected</span>
+                            <div class="stat-icon">&#9888;</div>
+                        </div>
+                        <div class="stat-value" id="stat-attacks">-</div>
+                        <div class="stat-footer">Across all sites</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Attacks Blocked</span>
+                            <div class="stat-icon">&#128737;</div>
+                        </div>
+                        <div class="stat-value" id="stat-blocked">-</div>
+                        <div class="stat-footer">By WAF Engine</div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 1 -->
+                <div class="chart-grid">
+                    <div class="chart-card">
+                        <h3>QPS (Queries Per Second)</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="qpsChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>30-Day Request Trend</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="requestsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 2 -->
+                <div class="chart-grid" style="margin-top: 24px;">
+                    <div class="chart-card">
+                        <h3>30-Day Intercept Trend</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="interceptsChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Attack Type Distribution</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="attackTypesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 3 -->
+                <div class="chart-grid" style="margin-top: 24px;">
+                    <div class="chart-card">
+                        <h3>Risk Level Distribution</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="riskChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Top Attacker IPs</h3>
+                        <div class="table-container" id="top-ips-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>IP Address</th>
+                                        <th>Country</th>
+                                        <th>Attacks</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="top-ips-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/app.js?v=5.0.0"></script>
+    <script>
+        if (!requireAuth()) window.location.href = '/login';
+        document.getElementById('sidebar-mount').innerHTML = getSidebarHTML('dashboard');
+        initSidebar('dashboard');
+        
+        let charts = {};
+
+        async function loadDashboard() {
+            try {
+                const [counts, qps, reqs, intercepts, attackTypes, topIps, riskDist] = await Promise.all([
+                    apiGet('/dashboard/counts'),
+                    apiGet('/dashboard/qps'),
+                    apiGet('/dashboard/requests'),
+                    apiGet('/dashboard/intercepts'),
+                    apiGet('/dashboard/attack_types'),
+                    apiGet('/dashboard/top_ips'),
+                    apiGet('/dashboard/risk_distribution')
+                ]);
+
+                // Update stats
+                const d = counts.data;
+                document.getElementById('stat-sites').textContent = formatNumber(d.total_sites);
+                document.getElementById('stat-requests').textContent = formatNumber(d.requested);
+                document.getElementById('stat-attacks').textContent = formatNumber(d.total_attacks);
+                document.getElementById('stat-blocked').textContent = formatNumber(d.blocked_attacks);
+
+                // QPS Chart
+                renderLineChart('qpsChart', 'qps', qps.data.nodes, 'QPS', '#00f0ff', 'rgba(0,240,255,0.1)');
+                // Requests Chart
+                renderLineChart('requestsChart', 'requests', reqs.data.nodes, 'Requests', '#00f0ff', 'rgba(0,240,255,0.1)');
+                // Intercepts Chart
+                renderLineChart('interceptsChart', 'intercepts', intercepts.data.nodes, 'Blocked', '#ff4d6d', 'rgba(255,77,109,0.1)');
+                // Attack Types Doughnut
+                renderDoughnut('attackTypesChart', 'attackTypes', attackTypes.data);
+                // Risk Distribution
+                renderRiskChart('riskChart', 'risk', riskDist.data);
+                // Top IPs Table
+                renderTopIPs(topIps.data);
+
+                const updatedEl = document.getElementById('last-updated');
+                if (updatedEl) updatedEl.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+            } catch (err) {
+                console.error('Dashboard load error:', err);
+            }
+        }
+
+        function renderLineChart(canvasId, key, nodes, label, color, bgColor) {
+            if (charts[key]) charts[key].destroy();
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            charts[key] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: nodes.map(n => { const parts = n.label.split(' '); return parts[parts.length-1] || n.label; }),
+                    datasets: [{
+                        label, data: nodes.map(n => n.value),
+                        borderColor: color, backgroundColor: bgColor,
+                        borderWidth: 2, fill: true, tension: 0.1,
+                        pointRadius: 0, pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a0aabf', maxTicksLimit: 8, font: { family: "'JetBrains Mono', monospace", size: 11 } } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { dash: [4, 4] }, ticks: { color: '#a0aabf', font: { family: "'JetBrains Mono', monospace", size: 11 } }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function renderDoughnut(canvasId, key, data) {
+            if (charts[key]) charts[key].destroy();
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const colors = ['#00f0ff', '#b05cff', '#ff4d6d', '#00e676', '#fadb14', '#13c2c2', '#eb2f96', '#722ed1'];
+            charts[key] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.type),
+                    datasets: [{ data: data.map(d => d.count), backgroundColor: colors.slice(0, data.length), borderWidth: 2, borderColor: '#121b33', hoverOffset: 4 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '70%',
+                    plugins: { legend: { position: 'right', labels: { color: '#a0aabf', padding: 12, font: { size: 12 }, usePointStyle: true, pointStyleWidth: 8 } } }
+                }
+            });
+        }
+
+        function renderRiskChart(canvasId, key, data) {
+            if (charts[key]) charts[key].destroy();
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const colorMap = { 'Low': '#00f0ff', 'Medium': '#fadb14', 'High': '#ff4d6d', 'Critical': '#b05cff' };
+            charts[key] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.level),
+                    datasets: [{ data: data.map(d => d.count), backgroundColor: data.map(d => colorMap[d.level] || 'rgba(255,255,255,0.1)'), borderRadius: 4, barThickness: 40 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a0aabf', font: { size: 12 } } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { dash: [4, 4] }, ticks: { color: '#a0aabf' }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function renderTopIPs(data) {
+            const tbody = document.getElementById('top-ips-body');
+            tbody.innerHTML = data.map((d, i) => `
+                <tr>
+                    <td style="color:var(--text-muted)">${i + 1}</td>
+                    <td style="color:var(--text-primary);font-family:monospace">${d.ip}</td>
+                    <td>${d.country}</td>
+                    <td><span class="badge-status badge-danger">${d.count}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // --- Live WebSocket Feed ---
+        function connectLiveFeed() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
+            const socket = new WebSocket(wsUrl);
+            
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'attack') {
+                        showToast(`Blocked ${data.rule} from ${data.ip} (${data.country})`, 'danger');
+                        
+                        // Increment dashboard counters optimistically
+                        const blockedEl = document.getElementById('stat-blocked');
+                        const attacksEl = document.getElementById('stat-attacks');
+                        if (blockedEl) {
+                            let val = parseInt(blockedEl.textContent.replace(/,/g, '').replace(/[kKmM]/g, '000')) || 0;
+                            blockedEl.textContent = formatNumber(val + 1);
+                        }
+                        if (attacksEl) {
+                            let val = parseInt(attacksEl.textContent.replace(/,/g, '').replace(/[kKmM]/g, '000')) || 0;
+                            attacksEl.textContent = formatNumber(val + 1);
+                        }
+                    }
+                } catch (e) {
+                    console.error("WS parsing error:", e);
+                }
+            };
+            
+            socket.onopen = function() {
+                console.log("Connected to Digi Save WAF Live Feed");
+                showToast("Live Threat Feed connected", "success");
+            };
+            
+            socket.onclose = function() {
+                // Try to reconnect in 5 seconds
+                setTimeout(connectLiveFeed, 5000);
+            };
+        }
+        
+        connectLiveFeed();
+        // -----------------------------
+
+        loadDashboard();
+        setInterval(loadDashboard, 60000);
+    </script>
+</body>
+</html>

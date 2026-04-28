@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy Rules - Digi Save WAF</title>
+    <meta name="description" content="Manage WAF policy rules in Digi Save">
+    <link rel="stylesheet" href="/css/style.css?v=5.0.0">
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-mount"></div>
+        <main class="main-content">
+<div class="page-wrapper">
+                <div class="page-header">
+                    <div>
+                        <span class="subtitle">Configure WAF protection rules and detection modules</span>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="openAddRule()">+ Add Rule</button>
+                    </div>
+                </div>
+
+            <!-- Detection Modules Section -->
+            <h2 style="font-size:18px;margin-bottom:16px">🧠 Detection Modules</h2>
+            <div class="card" style="margin-bottom:28px">
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Module</th><th>Description</th><th>Mode</th><th>High Risk</th><th>Medium Risk</th><th>Low Risk</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody id="modules-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Custom Rules Section -->
+            <h2 style="font-size:18px;margin-bottom:16px">📋 Custom Rules</h2>
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>ID</th><th>Name</th><th>Pattern</th><th>Target</th><th>Action</th><th>Risk</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="rules-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="rules-empty" style="display:none">
+                    <div class="empty-icon">📋</div>
+                    <h3>No custom rules</h3>
+                    <p>Add custom WAF rules for fine-grained protection</p>
+                </div>
+            </div>
+
+            <!-- IP Access Control Section -->
+            <h2 style="font-size:18px;margin-bottom:16px;margin-top:28px">&#127760; IP Access Control</h2>
+            <div class="card" style="margin-bottom:28px">
+                <div class="page-actions" style="margin-bottom: 16px;">
+                    <button class="btn btn-primary" onclick="openAddAcl()">+ Add IP/Network</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>ID</th><th>IP / CIDR</th><th>Action</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="acl-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="acl-empty" style="display:none">
+                    <div class="empty-icon">&#127760;</div>
+                    <h3>No ACL rules</h3>
+                    <p>Add IP addresses or CIDR blocks to explicitly allow or block</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Rule Modal -->
+    <div class="modal-overlay" id="ruleModal">
+        <div class="modal">
+            <div class="modal-header"><h3 id="ruleModalTitle">Add Rule</h3><button class="modal-close" onclick="closeModal('ruleModal')">✕</button></div>
+            <form id="ruleForm">
+                <div class="modal-body">
+                    <input type="hidden" id="rule-id">
+                    <div class="form-group"><label>Rule Name</label><input type="text" class="form-control" id="rule-name" placeholder="e.g. Block SQL Injection" required></div>
+                    <div class="form-group"><label>Pattern (regex)</label><textarea class="form-control" id="rule-pattern" placeholder="e.g. (?i)(union\s+select|drop\s+table)" required></textarea></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div class="form-group"><label>Target</label>
+                            <select class="form-control" id="rule-target"><option value="url">URL</option><option value="body">Body</option><option value="header">Header</option><option value="cookie">Cookie</option><option value="user-agent">User-Agent</option></select>
+                        </div>
+                        <div class="form-group"><label>Action</label>
+                            <select class="form-control" id="rule-action"><option value="deny">Block</option><option value="allow">Allow</option><option value="log">Log Only</option></select>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div class="form-group"><label>Risk Level</label>
+                            <select class="form-control" id="rule-risk"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
+                        </div>
+                        <div class="form-group"><label>Pattern Type</label>
+                            <select class="form-control" id="rule-pattern-type"><option value="regex">Regex</option><option value="exact">Exact Match</option><option value="prefix">Prefix</option><option value="suffix">Suffix</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label>Description</label><textarea class="form-control" id="rule-desc" placeholder="Describe what this rule does"></textarea></div>
+                    <div class="form-group" style="display:flex;align-items:center;gap:12px">
+                        <label class="toggle"><input type="checkbox" id="rule-enabled" checked><span class="slider"></span></label>
+                        <span style="font-size:14px">Enabled</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('ruleModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Rule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add ACL Modal -->
+    <div class="modal-overlay" id="aclModal">
+        <div class="modal">
+            <div class="modal-header"><h3>Add IP Access Rule</h3><button class="modal-close" onclick="closeModal('aclModal')">✕</button></div>
+            <form id="aclForm">
+                <div class="modal-body">
+                    <div class="form-group"><label>IP Address or CIDR</label><input type="text" class="form-control" id="acl-ip" placeholder="e.g. 192.168.1.100 or 10.0.0.0/8" required></div>
+                    <div class="form-group"><label>Action</label>
+                        <select class="form-control" id="acl-action"><option value="block">Block</option><option value="allow">Allow</option></select>
+                    </div>
+                    <div class="form-group"><label>Note</label><input type="text" class="form-control" id="acl-note" placeholder="Reason for this rule"></div>
+                    <div class="form-group" style="display:flex;align-items:center;gap:12px">
+                        <label class="toggle"><input type="checkbox" id="acl-enabled" checked><span class="slider"></span></label>
+                        <span style="font-size:14px">Enabled</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('aclModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save ACL</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Module Mode Modal -->
+    <div class="modal-overlay" id="moduleModal">
+        <div class="modal">
+            <div class="modal-header"><h3>Change Module Mode</h3><button class="modal-close" onclick="closeModal('moduleModal')">✕</button></div>
+            <div class="modal-body">
+                <input type="hidden" id="module-name">
+                <p style="margin-bottom:16px;color:var(--text-secondary)" id="module-desc-text"></p>
+                <div class="form-group"><label>Protection Mode</label>
+                    <select class="form-control" id="module-mode">
+                        <option value="strict">Strict - Block all risk levels</option>
+                        <option value="default">Default - Block high risk, log medium/low</option>
+                        <option value="disabled">Disabled - Pass all traffic</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('moduleModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveModuleMode()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js?v=5.0.0"></script>
+    <script>
+        if (!requireAuth()) window.location.href = '/login';
+        document.getElementById('sidebar-mount').innerHTML = getSidebarHTML('rules');
+        initSidebar('rules');
+
+        const modeColors = { strict: 'badge-danger', default: 'badge-warning', disabled: 'badge-muted' };
+        const actionColors = { deny: 'badge-danger', continue: 'badge-success', allow: 'badge-success', log: 'badge-info' };
+
+        async function loadModules() {
+            const resp = await apiGet('/policy-groups');
+            document.getElementById('modules-tbody').innerHTML = resp.data.map(m => `<tr>
+                <td style="color:var(--text-primary);font-weight:500">${m.module_name}</td>
+                <td style="font-size:13px">${m.description}</td>
+                <td><span class="badge-status ${modeColors[m.mode]||'badge-muted'}">${m.mode.toUpperCase()}</span></td>
+                <td><span class="badge-status ${actionColors[m.high_risk_action]}">${m.high_risk_action}</span></td>
+                <td><span class="badge-status ${actionColors[m.medium_risk_action]}">${m.medium_risk_action}</span></td>
+                <td><span class="badge-status ${actionColors[m.low_risk_action]}">${m.low_risk_action}</span></td>
+                <td>${getEnabledBadge(m.state==='enabled')}</td>
+                <td><button class="btn btn-secondary btn-sm" onclick="editModule('${m.module}','${m.module_name}','${m.mode}','${m.description}')">Configure</button></td>
+            </tr>`).join('');
+        }
+
+        async function loadRules() {
+            const resp = await apiGet('/policy-rules');
+            const tbody = document.getElementById('rules-tbody');
+            const empty = document.getElementById('rules-empty');
+            if (!resp.data.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+            empty.style.display = 'none';
+
+            const riskBadge = { low: 'badge-info', medium: 'badge-warning', high: 'badge-danger', critical: 'badge-critical' };
+            const actBadge = { deny: 'badge-danger', allow: 'badge-success', log: 'badge-info' };
+            tbody.innerHTML = resp.data.map(r => `<tr>
+                <td style="color:var(--text-muted)">#${r.id}</td>
+                <td style="color:var(--text-primary);font-weight:500">${r.name}</td>
+                <td style="font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.pattern}">${r.pattern}</td>
+                <td><span class="badge-status badge-info">${r.target}</span></td>
+                <td><span class="badge-status ${actBadge[r.action]||'badge-muted'}">${r.action.toUpperCase()}</span></td>
+                <td><span class="badge-status ${riskBadge[r.risk_level]||'badge-muted'}">${r.risk_level}</span></td>
+                <td>${getEnabledBadge(r.is_enabled)}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-secondary btn-sm" onclick="toggleRule(${r.id})">${r.is_enabled?'Disable':'Enable'}</button>
+                    <button class="btn btn-secondary btn-sm" onclick="editRule(${r.id})">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">Del</button>
+                </td>
+            </tr>`).join('');
+        }
+
+        function openAddRule() {
+            document.getElementById('ruleModalTitle').textContent = 'Add Rule';
+            document.getElementById('rule-id').value = '';
+            document.getElementById('ruleForm').reset();
+            document.getElementById('rule-enabled').checked = true;
+            openModal('ruleModal');
+        }
+
+        async function editRule(id) {
+            const resp = await apiGet(`/policy-rules/${id}`);
+            const r = resp.data;
+            document.getElementById('ruleModalTitle').textContent = 'Edit Rule';
+            document.getElementById('rule-id').value = r.id;
+            document.getElementById('rule-name').value = r.name;
+            document.getElementById('rule-pattern').value = r.pattern;
+            document.getElementById('rule-target').value = r.target;
+            document.getElementById('rule-action').value = r.action;
+            document.getElementById('rule-risk').value = r.risk_level;
+            document.getElementById('rule-pattern-type').value = r.pattern_type;
+            document.getElementById('rule-desc').value = r.description;
+            document.getElementById('rule-enabled').checked = r.is_enabled;
+            openModal('ruleModal');
+        }
+
+        document.getElementById('ruleForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('rule-id').value;
+            const body = {
+                name: document.getElementById('rule-name').value,
+                pattern: document.getElementById('rule-pattern').value,
+                pattern_type: document.getElementById('rule-pattern-type').value,
+                target: document.getElementById('rule-target').value,
+                action: document.getElementById('rule-action').value,
+                risk_level: document.getElementById('rule-risk').value,
+                description: document.getElementById('rule-desc').value,
+                is_enabled: document.getElementById('rule-enabled').checked
+            };
+            try {
+                if (id) { await apiPut(`/policy-rules/${id}`, body); showToast('Rule updated', 'success'); }
+                else { await apiPost('/policy-rules', body); showToast('Rule created', 'success'); }
+                closeModal('ruleModal');
+                loadRules();
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+
+        async function toggleRule(id) {
+            try { await apiPut(`/policy-rules/${id}/toggle`, {}); loadRules(); }
+            catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function deleteRule(id) {
+            if (!confirm('Delete this rule?')) return;
+            try { await apiDelete(`/policy-rules/${id}`); showToast('Rule deleted', 'success'); loadRules(); }
+            catch (err) { showToast(err.message, 'error'); }
+        }
+
+        function editModule(module, moduleName, mode, desc) {
+            document.getElementById('module-name').value = module;
+            document.getElementById('module-mode').value = mode;
+            document.getElementById('module-desc-text').textContent = `Module: ${moduleName} (${module}) - ${desc}`;
+            openModal('moduleModal');
+        }
+
+        async function saveModuleMode() {
+            const module = document.getElementById('module-name').value;
+            const mode = document.getElementById('module-mode').value;
+            try {
+                await apiPut(`/policy-groups/${module}`, { mode });
+                showToast(`Module ${module} set to ${mode} mode`, 'success');
+                closeModal('moduleModal');
+                loadModules();
+            } catch (err) { showToast(err.message, 'error'); }
+        }
+
+        // --- IP ACL JavaScript ---
+        async function loadAcls() {
+            const resp = await apiGet('/ip_acl/');
+            const tbody = document.getElementById('acl-tbody');
+            const empty = document.getElementById('acl-empty');
+            if (!resp.data.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+            empty.style.display = 'none';
+
+            tbody.innerHTML = resp.data.map(a => `<tr>
+                <td style="color:var(--text-muted)">#${a.id}</td>
+                <td style="color:var(--text-primary);font-family:monospace;font-weight:600">${a.ip_cidr}</td>
+                <td><span class="badge-status ${a.action==='block'?'badge-danger':'badge-success'}">${a.action.toUpperCase()}</span></td>
+                <td>${a.note}</td>
+                <td>${getEnabledBadge(a.is_enabled)}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-secondary btn-sm" onclick="toggleAcl(${a.id}, ${!a.is_enabled})">${a.is_enabled?'Disable':'Enable'}</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteAcl(${a.id})">Del</button>
+                </td>
+            </tr>`).join('');
+        }
+
+        function openAddAcl() {
+            document.getElementById('aclForm').reset();
+            document.getElementById('acl-enabled').checked = true;
+            openModal('aclModal');
+        }
+
+        document.getElementById('aclForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const body = {
+                ip_cidr: document.getElementById('acl-ip').value,
+                action: document.getElementById('acl-action').value,
+                note: document.getElementById('acl-note').value,
+                is_enabled: document.getElementById('acl-enabled').checked
+            };
+            try {
+                await apiPost('/ip_acl/', body);
+                showToast('IP ACL rule added', 'success');
+                closeModal('aclModal');
+                loadAcls();
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+
+        async function toggleAcl(id, enabled) {
+            try { await apiPut(`/ip_acl/${id}`, { is_enabled: enabled }); await loadAcls(); }
+            catch (err) { showToast(err.message, 'error'); }
+        }
+
+        async function deleteAcl(id) {
+            if (!confirm('Delete this ACL rule?')) return;
+            try { await apiDelete(`/ip_acl/${id}`); showToast('ACL deleted', 'success'); loadAcls(); }
+            catch (err) { showToast(err.message, 'error'); }
+        }
+
+        loadModules();
+        loadRules();
+        loadAcls();
+    </script>
+</body>
+</html>

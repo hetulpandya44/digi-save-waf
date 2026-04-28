@@ -1,0 +1,28 @@
+networks:
+  digisave-net:
+    name: digisave-net
+    driver: bridge
+
+services:
+  waf:
+    container_name: digisave-waf
+    build: .
+    restart: always
+    ports:
+      - "8005:8005"   # Management API
+      - "8085:8085"   # Proxy Engine Worker
+      - "80:80"       # Example default HTTP proxy
+      - "443:443"     # Example default HTTPS proxy
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./backend/certs:/app/backend/certs
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=UTC
+    networks:
+      - digisave-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"

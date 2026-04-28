@@ -1,0 +1,217 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Access Control - Digi Save WAF</title>
+    <meta name="description" content="Manage IP blocklist and allowlist in Digi Save WAF">
+    <link rel="stylesheet" href="/css/style.css?v=5.0.0">
+    <style>
+        .acl-badge-block { background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(255,23,68,.3); }
+        .acl-badge-allow { background: var(--success-bg); color: var(--success); border: 1px solid rgba(0,230,118,.3); }
+        .ip-input-group { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 32px; flex-wrap: wrap; }
+        .ip-input-group .form-group { margin-bottom: 0; flex: 1; min-width: 200px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-dot.block { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+        .status-dot.allow { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <div id="sidebar-mount"></div>
+        <main class="main-content">
+<div class="page-wrapper">
+                <div class="page-header">
+                    <div>
+                        <span class="subtitle">Manage IP blocklist and allowlist - supports IPv4, IPv6, and CIDR ranges</span>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="openModal('addAclModal')">+ Add Rule</button>
+                    </div>
+                </div>
+
+                <!-- Stats Row -->
+                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit,minmax(200px,1fr));margin-bottom:32px">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Total Rules</span>
+                            <div class="stat-icon" style="font-size:20px">#</div>
+                        </div>
+                        <div class="stat-value" id="stat-total">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Blocked IPs</span>
+                            <div class="stat-icon" style="font-size:20px">X</div>
+                        </div>
+                        <div class="stat-value" id="stat-blocked" style="color:var(--danger)">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <span class="stat-label">Allowed IPs</span>
+                            <div class="stat-icon" style="font-size:20px">OK</div>
+                        </div>
+                        <div class="stat-value" id="stat-allowed" style="color:var(--success)">-</div>
+                    </div>
+                </div>
+
+                <!-- Rules Table -->
+                <div class="table-container">
+                    <div class="table-toolbar">
+                        <span style="color:var(--text-secondary);font-size:14px">IP/CIDR Rules - applied before detection engine</span>
+                        <span id="rules-count" style="color:var(--text-muted);font-size:13px"></span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>IP / CIDR Range</th>
+                                <th>Action</th>
+                                <th>Note</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="acl-tbody"></tbody>
+                    </table>
+                    <div id="acl-empty" style="display:none;padding:48px;text-align:center;color:var(--text-muted)">
+                        <div style="font-size:48px;margin-bottom:16px">&#128737;</div>
+                        <h3 style="color:var(--text-secondary);margin-bottom:8px">No ACL rules configured</h3>
+                        <p>Add IP addresses or CIDR ranges to block or whitelist them across all protected sites.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Rule Modal -->
+    <div class="modal-overlay" id="addAclModal">
+        <div class="modal" style="width:480px">
+            <div class="modal-header">
+                <h3>Add IP ACL Rule</h3>
+                <button class="modal-close" onclick="closeModal('addAclModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>IP Address or CIDR Range</label>
+                    <input type="text" class="form-control" id="acl-ip" placeholder="e.g. 192.168.1.100 or 10.0.0.0/8">
+                    <small style="color:var(--text-muted);display:block;margin-top:6px">Supports IPv4, IPv6, and CIDR notation (e.g. 203.0.113.0/24)</small>
+                </div>
+                <div class="form-group">
+                    <label>Action</label>
+                    <select class="form-control" id="acl-action">
+                        <option value="block">Block - Deny all requests from this IP</option>
+                        <option value="allow">Allow - Whitelist and skip WAF checks</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Note (optional)</label>
+                    <input type="text" class="form-control" id="acl-note" placeholder="e.g. Known scanner, Internal server, etc.">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addAclModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="addRule()">Add Rule</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/js/app.js?v=5.0.0"></script>
+    <script>
+        if (!requireAuth()) window.location.href = '/login';
+        document.getElementById('sidebar-mount').innerHTML = getSidebarHTML('ip_acl');
+        initSidebar('ip_acl');
+
+        async function loadRules() {
+            try {
+                const resp = await apiGet('/ip_acl/');
+                const tbody = document.getElementById('acl-tbody');
+                const empty = document.getElementById('acl-empty');
+                const data = resp.data;
+
+                document.getElementById('stat-total').textContent = data.length;
+                document.getElementById('stat-blocked').textContent = data.filter(r => r.action === 'block').length;
+                document.getElementById('stat-allowed').textContent = data.filter(r => r.action === 'allow').length;
+                document.getElementById('rules-count').textContent = `${data.length} rule${data.length !== 1 ? 's' : ''}`;
+
+                if (!data.length) {
+                    tbody.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+
+                tbody.innerHTML = data.map(r => `<tr>
+                    <td style="color:var(--text-muted);font-family:'JetBrains Mono',monospace">#${r.id}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;color:var(--text-primary)">
+                        <span class="status-dot ${r.action}"></span>${r.ip_cidr}
+                    </td>
+                    <td>
+                        <span class="badge-status ${r.action === 'block' ? 'acl-badge-block' : 'acl-badge-allow'}">
+                            ${r.action === 'block' ? 'BLOCK' : 'ALLOW'}
+                        </span>
+                    </td>
+                    <td style="color:var(--text-secondary)">${r.note || '-'}</td>
+                    <td>
+                        <label class="toggle">
+                            <input type="checkbox" ${r.is_enabled ? 'checked' : ''} onchange="toggleRule(${r.id}, this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </td>
+                    <td style="color:var(--text-muted);font-size:13px">${new Date(r.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id}, '${r.ip_cidr}')">Delete</button>
+                    </td>
+                </tr>`).join('');
+            } catch (err) {
+                showToast('Failed to load rules: ' + err.message, 'error');
+            }
+        }
+
+        async function addRule() {
+            const ip = document.getElementById('acl-ip').value.trim();
+            const action = document.getElementById('acl-action').value;
+            const note = document.getElementById('acl-note').value.trim();
+
+            if (!ip) { showToast('Please enter an IP address or CIDR range', 'error'); return; }
+
+            try {
+                await apiPost('/ip_acl/', { ip_cidr: ip, action, note, is_enabled: true });
+                showToast(`Rule added: ${action.toUpperCase()} ${ip}`, 'success');
+                closeModal('addAclModal');
+                document.getElementById('acl-ip').value = '';
+                document.getElementById('acl-note').value = '';
+                loadRules();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+
+        async function toggleRule(id, enabled) {
+            try {
+                await apiPut(`/ip_acl/${id}`, { is_enabled: enabled });
+                showToast(`Rule ${enabled ? 'enabled' : 'disabled'}`, 'success');
+            } catch (err) {
+                showToast('Failed to update rule', 'error');
+                loadRules();
+            }
+        }
+
+        async function deleteRule(id, ip) {
+            if (!confirm(`Delete ACL rule for ${ip}?`)) return;
+            try {
+                await apiDelete(`/ip_acl/${id}`);
+                showToast(`Rule deleted: ${ip}`, 'success');
+                loadRules();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+
+        loadRules();
+    </script>
+</body>
+</html>

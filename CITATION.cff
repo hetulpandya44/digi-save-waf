@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: Digi Save WAF
+message: If you use this project for academic reference, please cite it using the metadata below.
+type: software
+authors:
+  - family-names: Pandya
+    given-names: Hetul
+repository-code: https://github.com/hetulpandya44/digi-save-waf
+license: GPL-3.0
+abstract: Reverse-proxy Web Application Firewall built with FastAPI, SQLite, and a modular detection engine.
+keywords:
+  - cybersecurity
+  - waf
+  - fastapi
+  - reverse proxy
+  - web security
+  - sqlite
+
